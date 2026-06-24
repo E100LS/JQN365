@@ -1,0 +1,20 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  --color-primary: #1a365d;
+  --color-primary-light: #2c5282;
+  --color-accent: #c53030;
+  --color-accent-light: #fc8181;
+  --color-success: #276749;
+  --color-warning: #c05621;
+}
+
+@theme {
+  --color-primary: #1a365d;
+  --color-primary-light: #2c5282;
+  --color-accent: #c53030;
+  --color-accent-light: #fc8181;
+  --color-success: #276749;
+  --color-warning: #c05621;
+}
