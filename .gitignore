@@ -21,3 +21,16 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+
+# Deployment artifacts
+*.zip
+*.ps1
+JQN365/
+functions/
+migrations/
+src/sql/
+src/cloudflare/
+wrangler.toml
+batch1-config.zip
+batch2-styles.zip
+batch3-app.zip

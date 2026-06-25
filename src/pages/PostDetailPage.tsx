@@ -12,7 +12,6 @@ const JSON_POSTS = postsData.posts.map((p, index) => ({
 
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const postId = id ? parseInt(id, 10) : NaN;
   const navigate = useNavigate();
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,8 +34,8 @@ export default function PostDetailPage() {
     }
   }, []);
 
-  // 根据 URL 参数查找文章
-  const post = allPosts.find(p => p.id === postId);
+  // 根据 URL 参数查找文章（支持字符串ID和数字ID）
+  const post = allPosts.find(p => String(p.id) === id);
 
   if (loading) {
     return (
@@ -57,9 +56,9 @@ export default function PostDetailPage() {
         <Link to="/" className="text-primary hover:text-primary-light font-medium">
           ← 返回首页
         </Link>
-        {postId && (
+        {id && (
           <p className="text-sm text-gray-400 mt-4">
-            当前文章 ID: {postId}，共有 {allPosts.length} 篇文章
+            当前文章 ID: {id}，共有 {allPosts.length} 篇文章
           </p>
         )}
       </div>

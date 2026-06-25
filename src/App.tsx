@@ -1,29 +1,11 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
+import AdminLayout from './components/AdminLayout';
 import HomePage from './pages/HomePage';
 import PostDetailPage from './pages/PostDetailPage';
 import AdminPostList from './pages/AdminPostList';
 import AdminNewPost from './pages/AdminNewPost';
 import AdminEditPost from './pages/AdminEditPost';
-
-function App() {
-  return (
-    <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/post/:id" element={<PostDetailPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/tag/:name" element={<TagPage />} />
-          {/* 后台管理路由 */}
-          <Route path="/admin" element={<AdminPostList />} />
-          <Route path="/admin/new" element={<AdminNewPost />} />
-          <Route path="/admin/edit/:id" element={<AdminEditPost />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
-  );
-}
 
 function AboutPage() {
   return (
@@ -55,6 +37,53 @@ function TagPage() {
       <h1 className="text-3xl font-bold text-blue-900 mb-6">标签</h1>
       <p className="text-gray-600">选择标签筛选相关文章</p>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* 前台公开路由 - 每个路由都包裹在 Layout 中 */}
+        <Route path="/" element={
+          <Layout>
+            <HomePage />
+          </Layout>
+        } />
+        <Route path="/post/:id" element={
+          <Layout>
+            <PostDetailPage />
+          </Layout>
+        } />
+        <Route path="/about" element={
+          <Layout>
+            <AboutPage />
+          </Layout>
+        } />
+        <Route path="/tag/:name" element={
+          <Layout>
+            <TagPage />
+          </Layout>
+        } />
+
+        {/* 后台路由 - 使用独立的 AdminLayout（深色主题） */}
+        <Route path="/admin" element={
+          <AdminLayout>
+            <AdminPostList />
+          </AdminLayout>
+        } />
+        <Route path="/admin/new" element={
+          <AdminLayout>
+            <AdminNewPost />
+          </AdminLayout>
+        } />
+        <Route path="/admin/edit/:id" element={
+          <AdminLayout>
+            <AdminEditPost />
+          </AdminLayout>
+        } />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

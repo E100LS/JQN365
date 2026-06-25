@@ -1,187 +1,206 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Post } from '../utils/postStorage';
-import { savePosts, addPost } from '../utils/postStorage';
+import { getPosts, setPosts } from '../utils/postStorage';
 import { readMultipleFiles } from '../utils/fileUtils';
-
-// 可用的标签
-const AVAILABLE_TAGS = ['技术分析', '基本面分析', '心态修炼', '资金管理', '复盘总结'];
+import { suggestTags, analyzeTags } from '../utils/autoTag';
 
 export default function AdminNewPost() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [tags, setTags] = useState<string[]>([]);
+  const [tagsStr, setTagsStr] = useState('');
   const [content, setContent] = useState('');
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
-  // 切换标签
-  const toggleTag = (tag: string) => {
-    setTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    );
+  // 智能分析推荐标签
+  const tagSuggestions = useMemo(() => {
+    if (!title.trim() && !content.trim()) return [];
+    return analyzeTags(title, content);
+  }, [title, content]);
+
+  const currentTags = useMemo(() => {
+    return tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+  }, [tagsStr]);
+
+  // 未被使用的推荐标签
+  const pendingSuggestions = useMemo(() => {
+    return tagSuggestions.filter(s => !currentTags.includes(s.tag));
+  }, [tagSuggestions, currentTags]);
+
+  // 应用某个推荐标签
+  const applyTag = (tag: string) => {
+    const existing = currentTags;
+    if (!existing.includes(tag)) {
+      existing.push(tag);
+      setTagsStr(existing.join(', '));
+    }
   };
 
-  // 从文件导入
+  // 一键应用所有推荐标签
+  const applyAllTags = () => {
+    const existing = currentTags;
+    const combined = [...existing];
+    tagSuggestions.forEach(s => {
+      if (!combined.includes(s.tag)) {
+        combined.push(s.tag);
+      }
+    });
+    setTagsStr(combined.join(', '));
+  };
+
+  // 移除某个标签
+  const removeTag = (tag: string) => {
+    const filtered = currentTags.filter(t => t !== tag);
+    setTagsStr(filtered.join(', '));
+  };
+
   const handleImport = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
+    setImporting(true);
     setError(null);
 
     try {
       const fileContents = await readMultipleFiles(files);
-      const file = fileContents[0]; // 只处理第一个文件
-      
-      // 直接用文本内容填充
+      const file = fileContents[0];
+
       setContent(file.content);
-      
-      // 尝试提取标题（从 front-matter 或文件名）
+
+      // 解析 front-matter：标题
       const titleMatch = file.content.match(/^\s*---\s*\n.*?title:\s*(.+?)\s*\n/m);
+      let parsedTitle = '';
       if (titleMatch) {
-        setTitle(titleMatch[1].trim());
+        parsedTitle = titleMatch[1].trim();
+        setTitle(parsedTitle);
       } else {
-        setTitle(file.name.replace(/\.[^.]+$/, ''));
-      }
-      
-      // 自动提取标签
-      const tagMatch = file.content.match(/tags:\s*\[([^\]]*)\]/);
-      if (tagMatch) {
-        const extracted = tagMatch[1]
-          .split(',')
-          .map(t => t.trim().replace(/['"]/g, ''))
-          .filter(Boolean);
-        setTags(extracted);
+        parsedTitle = file.name.replace(/\.[^.]+$/, '');
+        setTitle(parsedTitle);
       }
 
-      // 提取日期
+      // 解析 front-matter：标签
+      const tagMatch = file.content.match(/tags:\s*\[([^\]]*)\]/);
+      if (tagMatch) {
+        const parsedTags = tagMatch[1]
+          .split(',')
+          .map((t: string) => t.trim().replace(/['"]/g, ''))
+          .filter(Boolean);
+        setTagsStr(parsedTags.join(', '));
+      }
+
+      // 解析 front-matter：日期
       const dateMatch = file.content.match(/date:\s*(\d{4}-\d{2}-\d{2})/);
       if (dateMatch) {
         setDate(dateMatch[1]);
       }
-    } catch (e) {
-      setError('导入失败: ' + (e as Error).message);
+    } catch (e: any) {
+      setError('导入文件失败: ' + e.message);
+    } finally {
+      setImporting(false);
     }
 
-    // 重置文件输入
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // 保存文章
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!title.trim()) {
       setError('请输入文章标题');
       return;
     }
-
     if (!content.trim()) {
       setError('请输入文章内容');
       return;
     }
 
-    setSaving(true);
-    setError(null);
+    const tags = currentTags;
 
-    try {
-      // 从 localStorage 加载现有文章
-      const existingPosts = JSON.parse(localStorage.getItem('stock_blog_posts') || '[]');
-      
-      const newPost: Omit<Post, 'id'> = {
-        title: title.trim(),
-        date,
-        tags,
-        excerpt: content.replace(/[#*>>\-\|]/g, ' ')
-          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-          .replace(/\n{2,}/g, '\n')
-          .trim()
-          .substring(0, 150) + '...',
-        content
-      };
+    const excerpt = content
+      .replace(/[#*>\-\|]/g, ' ')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\n{2,}/g, '\n')
+      .trim()
+      .substring(0, 150) + '...';
 
-      const post = addPost(existingPosts, newPost);
-      savePosts([...existingPosts, post]);
+    const posts = getPosts();
+    const id = `post_${Date.now()}`;
+    const now = new Date().toISOString();
 
-      navigate('/admin');
-    } catch (e) {
-      setError('保存失败: ' + (e as Error).message);
-    } finally {
-      setSaving(false);
-    }
+    posts.unshift({
+      id,
+      title: title.trim(),
+      date,
+      tags,
+      excerpt,
+      content,
+      created_at: now,
+      updated_at: now,
+    });
+
+    setPosts(posts);
+    navigate('/admin');
+  };
+
+  // 根据匹配度返回星级显示
+  const getScoreStars = (score: number) => {
+    if (score >= 10) return '⭐⭐⭐';
+    if (score >= 5) return '⭐⭐';
+    if (score >= 2) return '⭐';
+    return '';
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
-      {/* 顶部栏 */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">新建文章</h1>
-          <p className="mt-1 text-gray-600">编写并发布你的炒股经验</p>
-        </div>
-        
+    <div className="space-y-6">
+      {/* 标题栏 */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-100">新建文章</h1>
         <div className="flex gap-3">
           <button
-            onClick={() => setPreview(!preview)}
-            className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+            onClick={() => navigate('/admin')}
+            className="px-4 py-2 text-gray-400 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors"
           >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-            {preview ? '编辑' : '预览'}
+            取消
           </button>
-          
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium disabled:opacity-50"
+            className="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors font-medium"
           >
-            {saving ? (
-              <>
-                <svg className="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                保存中...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-                发布文章
-              </>
-            )}
+            发布文章
           </button>
         </div>
       </div>
 
-      {/* 错误提示 */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+        <div className="bg-red-900/30 border border-red-700 text-red-400 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
 
-      {/* 导入区域 */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">快速导入</h2>
-          <p className="text-sm text-gray-500">从本地文件导入 Markdown 文章</p>
+      {/* 快速导入区域 */}
+      <div className="bg-gray-800 rounded-xl border border-gray-700 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-300">快速导入 Markdown 文件</h2>
+          {importing && (
+            <div className="flex items-center gap-2 text-sm text-amber-400">
+              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              导入中...
+            </div>
+          )}
         </div>
-        
-        <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-primary transition-colors cursor-pointer"
-             onClick={() => fileInputRef.current?.click()}>
-          <svg className="w-10 h-10 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div
+          className="border-2 border-dashed border-gray-600 rounded-lg p-5 text-center hover:border-amber-500 transition-colors cursor-pointer"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <svg className="w-8 h-8 mx-auto text-gray-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
-          <p className="text-gray-600">点击或拖拽文件到此处</p>
-          <p className="text-sm text-gray-500 mt-1">支持 .md, .markdown, .txt 文件</p>
+          <p className="text-gray-400 text-sm">点击选择或拖拽 Markdown 文件</p>
+          <p className="text-gray-500 text-xs mt-1">自动解析标题、日期、标签和正文</p>
           <input
             ref={fileInputRef}
             type="file"
@@ -192,108 +211,115 @@ export default function AdminNewPost() {
         </div>
       </div>
 
-      {/* 表单区域 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* 编辑区域 */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <div className="space-y-4">
-            {/* 标题 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">标题</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="请输入文章标题"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            </div>
+      {/* 编辑表单 */}
+      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">标题</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="请输入文章标题"
+            className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 text-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-gray-500"
+          />
+        </div>
 
-            {/* 日期 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">发布日期</label>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            </div>
-
-            {/* 标签 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">标签</label>
-              <div className="flex flex-wrap gap-2">
-                {AVAILABLE_TAGS.map(tag => (
-                  <button
-                    key={tag}
-                    type="button"
-                    onClick={() => toggleTag(tag)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      tags.includes(tag)
-                        ? 'bg-primary text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {tag}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 内容 */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                内容 <span className="text-gray-400">(Markdown 格式)</span>
-              </label>
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={"# 标题\n\n## 正文...\n\n> 引用\n\n- 列表项"}
-                rows={16}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-mono text-sm resize-none"
-              />
-            </div>
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-300 mb-2">日期</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 text-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-300 mb-2">标签（逗号分隔）</label>
+            <input
+              type="text"
+              value={tagsStr}
+              onChange={(e) => setTagsStr(e.target.value)}
+              placeholder="技术分析, 心态修炼"
+              className="w-full px-4 py-2.5 bg-gray-700 border border-gray-600 text-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent placeholder-gray-500"
+            />
           </div>
         </div>
 
-        {/* 预览区域 */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">实时预览</h2>
-            {preview && (
-              <span className="text-sm text-gray-500">显示 Markdown 渲染效果</span>
-            )}
+        {/* 已选标签 */}
+        {currentTags.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">当前标签</label>
+            <div className="flex flex-wrap gap-2">
+              {currentTags.map(tag => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-amber-600/30 text-amber-300 rounded-lg text-sm"
+                >
+                  {tag}
+                  <button
+                    onClick={() => removeTag(tag)}
+                    className="ml-1 text-amber-400 hover:text-amber-200"
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
-          
-          <div className="border border-gray-200 rounded-xl p-6 min-h-[600px]">
-            {content.trim() ? (
-              <div className="prose prose-lg max-w-none">
-                <div dangerouslySetInnerHTML={{ 
-                  __html: content
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold text-primary my-3">$1</h3>')
-                    .replace(/^## (.*$)/gim, '<h2 class="text-xl font-semibold text-primary-light my-4">$1</h2>')
-                    .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold text-primary my-4">$1</h1>')
-                    .replace(/^\[(.+?)\]\((.+?)\)/gim, '<a href="$2" class="text-primary hover:underline">$1</a>')
-                    .replace(/\*\*(.+?)\*\*/gim, '<strong>$1</strong>')
-                    .replace(/\*(.+?)\*/gim, '<em>$1</em>')
-                    .replace(/^> (.*$)/gim, '<blockquote class="border-l-4 border-accent pl-4 my-4 text-gray-600 italic bg-gray-50 p-4 rounded-r">$1</blockquote>')
-                    .replace(/^- (.*$)/gim, '<li>$1</li>')
-                    .replace(/\n\n/gim, '</li></ul><p></p>')
-                    .replace(/\n/gim, '<br>')
-                }} />
-              </div>
-            ) : (
-              <div className="text-center py-20 text-gray-400">
-                <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        )}
+
+        {/* 智能推荐标签 */}
+        {tagSuggestions.length > 0 && (
+          <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                 </svg>
-                <p>开始输入内容，预览将自动更新</p>
+                <span className="text-sm font-medium text-gray-200">智能推荐标签</span>
+                <span className="text-xs text-gray-500">根据标题和内容自动分析</span>
               </div>
-            )}
+              {pendingSuggestions.length > 0 && (
+                <button
+                  onClick={applyAllTags}
+                  className="text-xs px-2.5 py-1 bg-amber-600/40 text-amber-300 rounded hover:bg-amber-600/60 transition-colors"
+                >
+                  一键应用全部
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tagSuggestions.map(s => {
+                const applied = currentTags.includes(s.tag);
+                return (
+                  <button
+                    key={s.tag}
+                    onClick={() => applied ? removeTag(s.tag) : applyTag(s.tag)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                      applied
+                        ? 'bg-emerald-700/40 text-emerald-300 border border-emerald-600/50'
+                        : 'bg-gray-600/50 text-gray-300 border border-gray-500/30 hover:border-amber-500/50 hover:text-amber-300'
+                    }`}
+                  >
+                    {getScoreStars(s.score)} {s.tag}
+                    {applied ? ' ✓' : ' +'}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">内容 (Markdown)</label>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={18}
+            placeholder={"# 标题\n\n## 正文...\n\n> 引用\n\n- 列表项"}
+            className="w-full px-4 py-3 bg-gray-700 border border-gray-600 text-gray-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent font-mono text-sm resize-none placeholder-gray-500"
+          />
         </div>
       </div>
     </div>

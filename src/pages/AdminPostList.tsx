@@ -1,39 +1,86 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { Post } from '../utils/postStorage';
-import { savePosts, deletePost, addPost, loadPosts, getTags } from '../utils/postStorage';
+import { 
+  loadPosts, 
+  deletePost, 
+  addPost, 
+  getTags,
+  getPostById,
+  updatePost,
+  login,
+  register,
+  isAuthenticated,
+  logout
+} from '../utils/postStorage';
 import { readMultipleFiles } from '../utils/fileUtils';
+import AdminLoginForm from '../components/AdminLoginForm';
 
 export default function AdminPostList() {
+  const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-  const navigate = useNavigate();
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
-  // 加载文章
+  // 检查是否已登录
   useEffect(() => {
-    try {
-      const loaded = loadPosts();
-      setPosts(loaded);
-    } catch (e) {
-      setError('加载文章失败');
-    } finally {
-      setLoading(false);
+    async function checkAuth() {
+      if (isAuthenticated()) {
+        setAuthenticated(true);
+      } else {
+        setAuthenticated(false);
+      }
     }
+    
+    checkAuth();
   }, []);
 
+  // 加载文章（仅已登录时）
+  useEffect(() => {
+    if (!authenticated) {
+      setLoading(false);
+      return;
+    }
+    
+    function loadPostsData() {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const loaded = loadPosts();
+        setPosts(loaded);
+      } catch (e: any) {
+        setError('加载文章失败: ' + e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    loadPostsData();
+  }, [authenticated]);
+
+  // 未登录时显示登录框
+  if (!authenticated) {
+    return <AdminLoginForm onLogin={() => setAuthenticated(true)} />;
+  }
+
   // 删除文章
-  const handleDelete = (id: number) => {
-    const newPosts = deletePost(posts, id);
-    savePosts(newPosts);
-    setPosts(newPosts);
+  const handleDelete = (id: string) => {
+    const success = deletePost(id);
+    if (success) {
+      setPosts(posts.filter(p => p.id !== id));
+    } else {
+      alert('删除失败，请重试');
+    }
     setDeleteConfirm(null);
   };
 
-  // 导入文件
+  // 导入文件（调用 API）
   const handleImport = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -41,46 +88,59 @@ export default function AdminPostList() {
     setError(null);
 
     try {
-      const fileContents = await readMultipleFiles(files);
       let imported = 0;
 
-      for (const file of fileContents) {
+      for (const file of await readMultipleFiles(files)) {
         try {
           const content = file.content;
-          // 尝试提取标题
           const titleMatch = content.match(/^\s*---\s*\n.*?title:\s*(.+?)\s*\n/m);
           const title = titleMatch?.[1]?.trim() || file.name.replace(/\.[^.]+$/, '');
-          // 提取标签
           const tagMatch = content.match(/tags:\s*\[([^\]]*)\]/);
           const tags = tagMatch
             ? tagMatch[1].split(',').map(t => t.trim().replace(/['"]/g, '')).filter(Boolean)
             : [];
 
-          const post = addPost(posts, {
+          const excerpt = content.replace(/[#*>>\-\|]/g, ' ')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .replace(/\n{2,}/g, '\n')
+            .trim()
+            .substring(0, 150) + '...';
+
+          const post = addPost({
             title,
             date: new Date().toISOString().split('T')[0],
-            tags: [] as string[],
-            excerpt: content.substring(0, 100) + '...',
+            tags,
+            excerpt,
             content
           });
 
-          setPosts(prev => [...prev, post]);
-          imported++;
+          if (post) {
+            setPosts(prev => [post!, ...prev]);
+            imported++;
+          }
         } catch (e) {
           console.error('解析文件失败:', e);
         }
       }
 
       if (imported > 0) {
-        const currentPosts = JSON.parse(localStorage.getItem('stock_blog_posts') || '[]');
-        savePosts(currentPosts);
         setShowImport(false);
+        alert(`成功导入 ${imported} 篇文章`);
+      } else {
+        setError('没有成功导入任何文章');
       }
-    } catch (e) {
-      setError('导入文件失败: ' + (e as Error).message);
+    } catch (e: any) {
+      setError('导入文件失败: ' + e.message);
     } finally {
       setImporting(false);
     }
+  };
+
+  // 退出登录
+  const handleLogout = () => {
+    logout();
+    setAuthenticated(false);
+    setUsername(null);
   };
 
   if (loading) {
@@ -100,7 +160,15 @@ export default function AdminPostList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">文章管理</h1>
-          <p className="mt-1 text-gray-600">管理你的博客文章</p>
+          <p className="mt-1 text-gray-600">
+            欢迎，{username || '管理员'} · 
+            <button 
+              onClick={handleLogout}
+              className="ml-2 text-sm text-gray-500 hover:text-primary underline"
+            >
+              退出登录
+            </button>
+          </p>
         </div>
         
         <div className="flex gap-3">
@@ -188,7 +256,7 @@ export default function AdminPostList() {
         
         {posts.length > 0 && (
           <div className="flex gap-2">
-            {getTags(posts).slice(0, 5).map(tag => (
+            {getTags().slice(0, 5).map(tag => (
               <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
                 {tag}
               </span>

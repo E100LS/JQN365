@@ -1,20 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import type { Post } from '../utils/postStorage';
+import { loadPosts } from '../utils/postStorage';
 
-// 文章数据类型
-interface Post {
-  id: number;
-  title: string;
-  date: string;
-  tags: string[];
-  excerpt: string;
-  content: string;
-}
-
-// 初始文章数据
 const INITIAL_POSTS: Post[] = [
   {
-    id: 1,
+    id: '1',
     title: "初入股市：我的第一笔交易反思",
     date: "2026-01-15",
     tags: ["复盘总结", "心态修炼"],
@@ -22,7 +13,7 @@ const INITIAL_POSTS: Post[] = [
     content: "# 初入股市：我的第一笔交易反思\n\n## 背景\n\n2025年夏天，我终于打开了证券账户，用积攒已久的2万元开启了投资之旅。\n\n## 第一次交易\n\n我选了一只看似稳健的蓝筹股，价格30元左右。下单那一刻，心跳加速，手心冒汗。"
   },
   {
-    id: 2,
+    id: '2',
     title: "技术指标的实战应用：MACD与KDJ结合",
     date: "2026-02-03",
     tags: ["技术分析"],
@@ -30,7 +21,7 @@ const INITIAL_POSTS: Post[] = [
     content: "# 技术指标的实战应用：MACD与KDJ结合\n\n## 技术指标概述\n\n### MACD（平滑异同移动平均线）\n- 长期趋势跟踪指标\n- 金叉买入，死叉卖出\n- 适合中长线操作"
   },
   {
-    id: 3,
+    id: '3',
     title: "仓位管理：永不押注全部筹码",
     date: "2026-03-12",
     tags: ["资金管理", "心态修炼"],
@@ -38,7 +29,7 @@ const INITIAL_POSTS: Post[] = [
     content: "# 仓位管理：永不押注全部筹码\n\n## 仓位管理的重要性\n\n> \"会买的是徒弟，会卖的是师傅，会空仓的是祖师爷。\""
   },
   {
-    id: 4,
+    id: '4',
     title: "基本面分析：如何阅读财报",
     date: "2026-04-20",
     tags: ["基本面分析"],
@@ -46,7 +37,7 @@ const INITIAL_POSTS: Post[] = [
     content: "# 基本面分析：如何阅读财报\n\n## 三大财务报表\n\n### 资产负债表\n- **资产** = 负债 + 所有者权益\n- 关注重点：流动资产、商誉、负债率"
   },
   {
-    id: 5,
+    id: '5',
     title: "投资心态修炼：克服贪婪与恐惧",
     date: "2026-05-18",
     tags: ["心态修炼", "复盘总结"],
@@ -54,7 +45,7 @@ const INITIAL_POSTS: Post[] = [
     content: "# 投资心态修炼：克服贪婪与恐惧\n\n## 情绪是投资的大敌\n\n> \"在别人贪婪时恐惧，在别人恐惧时贪婪。\" — 巴菲特"
   },
   {
-    id: 6,
+    id: '6',
     title: "年度复盘：从2025年学到的经验",
     date: "2026-06-10",
     tags: ["复盘总结", "资金管理"],
@@ -62,7 +53,7 @@ const INITIAL_POSTS: Post[] = [
     content: "# 年度复盘：从2025年学到的经验\n\n## 年度收益概览\n\n| 指标 | 数值 |\n|------|------|\n| 年初资金 | 10万元 |\n| 年末资金 | 12万元 |\n| 年化收益率 | 20% |"
   },
   {
-    id: 7,
+    id: '7',
     title: "如何设置止损单：交易者的生存法则",
     date: "2026-06-25",
     tags: ["技术分析", "资金管理"],
@@ -84,41 +75,47 @@ export default function HomePage() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 从 localStorage 加载文章
+  // 从 API 加载文章
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('stock_blog_posts');
-      if (stored) {
-        const loaded = JSON.parse(stored);
-        if (Array.isArray(loaded) && loaded.length > 0) {
+    async function init() {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        const loaded = await loadPosts();
+        if (loaded.length > 0) {
           setPosts(loaded);
+        } else {
+          // API 不可用时使用默认数据
+          setPosts(INITIAL_POSTS);
         }
+      } catch (e: any) {
+        console.warn('API 加载失败，使用默认数据:', e);
+        setPosts(INITIAL_POSTS);
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      console.error('加载文章失败:', e);
-    } finally {
-      setLoading(false);
     }
+    
+    init();
   }, []);
 
   // 搜索 + 标签筛选
   const filteredPosts = useMemo(() => {
     let result = posts;
 
-    // 关键词搜索：匹配标题和内容
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       result = result.filter(post =>
         post.title.toLowerCase().includes(query) ||
-        post.content.toLowerCase().includes(query) ||
         post.excerpt.toLowerCase().includes(query)
       );
     }
 
-    // 标签筛选
     if (selectedTag) {
-      result = result.filter(post => post.tags && post.tags.includes(selectedTag));
+      result = result.filter(post => post.tags?.includes(selectedTag));
     }
 
     return result;
@@ -145,7 +142,7 @@ export default function HomePage() {
         <h1 className="text-3xl md:text-4xl font-bold mb-3">{SITE_INFO.title}</h1>
         <p className="text-xl text-gray-200 mb-6">{SITE_INFO.subtitle}</p>
         <div className="flex flex-wrap gap-2">
-          {SITE_INFO.tags.map((tag: string) => (
+          {SITE_INFO.tags.map((tag) => (
             <span
               key={tag}
               className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full text-sm transition-colors cursor-pointer"
@@ -245,7 +242,7 @@ export default function HomePage() {
                 </p>
                 
                 <div className="flex flex-wrap gap-2 mb-4">
-                  {post.tags?.map((tag: string) => (
+                  {post.tags?.map((tag) => (
                     <button
                       key={tag}
                       onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
@@ -280,7 +277,7 @@ export default function HomePage() {
           <div className="text-center py-12">
             <p className="text-gray-500">暂无相关文章</p>
             <button
-              onClick={() => setSelectedTag(null)}
+              onClick={() => { setSelectedTag(null); setSearchQuery(''); }}
               className="mt-4 hover:underline font-medium"
               style={{ color: '#1a365d' }}
             >
