@@ -8,8 +8,8 @@
  * 2. 更新此文件为 API 调用模式
  * 
  * 当前本地模拟用户：
- * - 用户名：admin
- * - 密码：123456
+ * - 用户名：JQN365
+ * - 密码：bl0596cn
  */
 
 // 直接定义 Post 类型，使用字符串 ID
@@ -144,7 +144,7 @@ function initStorage() {
   // 确保默认用户存在
   let users = JSON.parse(localStorage.getItem('jqn365_users') || '[]');
   if (users.length === 0) {
-    users = [{ id: 'admin_1', username: 'admin', password: '123456' }];
+    users = [{ id: 'admin_1', username: 'JQN365', password: 'bl0596cn' }];
     localStorage.setItem('jqn365_users', JSON.stringify(users));
     console.log('初始化默认用户数据');
   }
@@ -305,7 +305,7 @@ export async function login(username: string, password: string): Promise<{ token
   let users = JSON.parse(localStorage.getItem('jqn365_users') || '[]');
   if (users.length === 0) {
     // 初始化默认 admin 用户
-    users = [{ id: 'admin_1', username: 'admin', password: '123456' }];
+    users = [{ id: 'admin_1', username: 'JQN365', password: 'bl0596cn' }];
     localStorage.setItem('jqn365_users', JSON.stringify(users));
   }
   
@@ -316,7 +316,7 @@ export async function login(username: string, password: string): Promise<{ token
   }
 
   if (user.password !== password) {
-    throw new Error('密码错误，默认密码是 123456');
+    throw new Error('密码错误');
   }
 
   // 设置为当前用户
