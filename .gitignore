@@ -30,6 +30,7 @@ functions/
 migrations/
 src/sql/
 src/cloudflare/
+# Deployment config (not needed in repo for Pages)
 wrangler.toml
 batch1-config.zip
 batch2-styles.zip
