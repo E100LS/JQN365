@@ -204,6 +204,39 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* 解千牛 AI 醒目栏目 */}
+      <section className="bg-gradient-to-r from-red-50 via-white to-red-50 rounded-xl border border-red-200 shadow-sm overflow-hidden">
+        <div className="p-6 md:p-8 flex flex-col md:flex-row items-center gap-6">
+          <div className="flex-shrink-0">
+            <img
+              src="/logo.jpg"
+              alt="解千牛"
+              className="w-14 h-14 rounded-xl object-cover shadow-md"
+            />
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <h2 className="text-xl font-bold text-red-800 mb-2">解千牛 AI</h2>
+            <p className="text-red-700/70 text-sm leading-relaxed">
+              专为交易者打造的智能分析助手，可帮助分析股票与期货 K 线图、
+              识别技术形态与关键信号、提供交易策略参考，让投资决策更有依据。
+            </p>
+          </div>
+          <div className="flex-shrink-0">
+            <a
+              href="https://yuanqi.tencent.com/webim/#/chat/fKPMZr?appid=2069215395866934336&experience=true"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-medium rounded-xl transition-all shadow-md hover:shadow-lg"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              开始对话
+            </a>
+          </div>
+        </div>
+      </section>
+
       {/* Posts Grid */}
       <section>
         <h2 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ color: '#1a365d' }}>

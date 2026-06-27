@@ -88,10 +88,10 @@ export default function Layout({ children }: LayoutProps) {
               </div>
             </div>
             <div>
-              <h3 className="text-white font-semibold mb-3">联系方式</h3>
+              <h3 className="text-white font-semibold mb-3">免责声明</h3>
               <p className="text-sm text-gray-400">
                 投资有风险，入市需谨慎<br />
-                本文仅供参考，不构成投资建议
+                本站内容仅供参考，不构成投资建议
               </p>
             </div>
           </div>
