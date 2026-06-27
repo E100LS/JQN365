@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getPosts, setPosts } from '../utils/postStorage';
+import { addPost, isAuthenticated, getTags, loadPosts, deletePost, getPostById, updatePost } from '../utils/postStorage';
 import { analyzeTags } from '../utils/autoTag';
 
 export default function AdminEditPost() {
