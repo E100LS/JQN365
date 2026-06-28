@@ -1,14 +1,8 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import type { D1Database } from '@cloudflare/workers-types';
-
-// TypeScript type for the binding
-type Bindings = {
-  DB: D1Database;
-};
 
 // Initialize Hono app
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono();
 
 // CORS middleware
 app.use('*', cors());
@@ -16,13 +10,13 @@ app.use('*', cors());
 // ============ Posts API ============
 
 // GET /api/posts - List all posts
-app.get('/api/posts', async (c: any) => {
+app.get('/api/posts', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const result = await db.prepare('SELECT * FROM posts ORDER BY date DESC').all();
     const rows = result.results || [];
     
-    const posts = rows.map((row: any) => ({
+    const posts = rows.map((row) => ({
       id: row.id,
       title: row.title,
       date: row.date,
@@ -34,15 +28,15 @@ app.get('/api/posts', async (c: any) => {
     }));
 
     return c.json(posts, 200);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
 
 // GET /api/posts/:id - Get single post
-app.get('/api/posts/:id', async (c: any) => {
+app.get('/api/posts/:id', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const id = c.req.param('id');
     const result = await db.prepare('SELECT * FROM posts WHERE id = ?').bind(id).first();
     
@@ -60,15 +54,15 @@ app.get('/api/posts/:id', async (c: any) => {
       created_at: result.created_at,
       updated_at: result.updated_at,
     }, 200);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
 
 // POST /api/posts - Create new post
-app.post('/api/posts', async (c: any) => {
+app.post('/api/posts', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const body = await c.req.json();
     
     const id = `post_${Date.now()}`;
@@ -80,15 +74,15 @@ app.post('/api/posts', async (c: any) => {
     ).bind(id, body.title, body.date || now, tags, body.excerpt || '', body.content, now, now).run();
     
     return c.json({ id, title: body.title, date: body.date || now, tags: body.tags || [], excerpt: body.excerpt || '', content: body.content, created_at: now, updated_at: now }, 201);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
 
 // PUT /api/posts/:id - Update post
-app.put('/api/posts/:id', async (c: any) => {
+app.put('/api/posts/:id', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const id = c.req.param('id');
     const body = await c.req.json();
     const now = new Date().toISOString();
@@ -99,36 +93,36 @@ app.put('/api/posts/:id', async (c: any) => {
     ).bind(body.title, body.date || now, tags, body.excerpt || '', body.content, now, id).run();
     
     return c.json({ id, title: body.title, date: body.date || now, tags: body.tags || [], excerpt: body.excerpt || '', content: body.content, updated_at: now }, 200);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
 
 // DELETE /api/posts/:id - Delete post
-app.delete('/api/posts/:id', async (c: any) => {
+app.delete('/api/posts/:id', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const id = c.req.param('id');
     await db.prepare('DELETE FROM posts WHERE id = ?').bind(id).run();
     return c.json({ success: true }, 200);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
 
 // GET /api/tags - Get all tags
-app.get('/api/tags', async (c: any) => {
+app.get('/api/tags', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const result = await db.prepare('SELECT tags FROM posts WHERE tags IS NOT NULL AND tags != "[]"').all();
     const rows = result.results || [];
     
-    const tagSet = new Set<string>();
+    const tagSet = new Set();
     for (const row of rows) {
       try {
         const tags = JSON.parse(row.tags);
         if (Array.isArray(tags)) {
-          tags.forEach((tag: string) => tagSet.add(tag));
+          tags.forEach((tag) => tagSet.add(tag));
         }
       } catch (e) {
         // skip invalid JSON
@@ -136,7 +130,7 @@ app.get('/api/tags', async (c: any) => {
     }
     
     return c.json(Array.from(tagSet).sort(), 200);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
@@ -144,9 +138,9 @@ app.get('/api/tags', async (c: any) => {
 // ============ Auth API ============
 
 // POST /api/login - Login
-app.post('/api/login', async (c: any) => {
+app.post('/api/login', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const body = await c.req.json();
     const result = await db.prepare('SELECT * FROM users WHERE username = ?').bind(body.username).first();
     
@@ -159,15 +153,15 @@ app.post('/api/login', async (c: any) => {
     }
     
     return c.json({ token: 'mock_token', user: { username: result.username } }, 200);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
 
 // POST /api/register - Register
-app.post('/api/register', async (c: any) => {
+app.post('/api/register', async (c) => {
   try {
-    const db = c.env.DB as D1Database;
+    const db = c.env.DB;
     const body = await c.req.json();
     
     const existing = await db.prepare('SELECT * FROM users WHERE username = ?').bind(body.username).first();
@@ -179,7 +173,7 @@ app.post('/api/register', async (c: any) => {
     await db.prepare('INSERT INTO users (id, username, password) VALUES (?, ?, ?)').bind(id, body.username, body.password).run();
     
     return c.json({ id, username: body.username }, 201);
-  } catch (error: any) {
+  } catch (error) {
     return c.json({ error: error.message }, 500);
   }
 });
