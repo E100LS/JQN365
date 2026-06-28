@@ -1,10 +1,7 @@
 /**
- * 文章存储管理 - localStorage 持久化模式
- * 所有数据存在浏览器 localStorage 中，刷新不丢失
- *
- * 当前管理员账号：
- * - 用户名：JQN365
- * - 密码：bl0596cn
+ * 文章存储管理
+ * - 开发环境 (Vite dev server): 使用 localStorage
+ * - 生产环境 (Cloudflare Pages): 使用 API 调用 D1 数据库
  */
 
 export interface Post {
@@ -17,6 +14,141 @@ export interface Post {
   created_at?: string;
   updated_at?: string;
 }
+
+// Production flag - in Cloudflare Pages, API calls go to /api
+const isProduction = import.meta.env.PROD;
+
+// API base URL - on Cloudflare Pages, /api/* is handled by Pages Functions
+const API_BASE = '/api';
+
+// ============ Posts ============
+
+export async function loadPosts(): Promise<Post[]> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/posts`);
+    if (!res.ok) {
+      // Fallback: if API is down, return empty
+      return [];
+    }
+    return res.json();
+  }
+  return getPostsLocal();
+}
+
+export async function getPostById(id: string): Promise<Post | null> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/posts/${id}`);
+    if (!res.ok) return null;
+    return res.json();
+  }
+  return getPostByIdLocal(id);
+}
+
+export async function addPost(postData: {
+  title: string;
+  date: string;
+  tags: string[];
+  content: string;
+  excerpt: string;
+}): Promise<Post> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/posts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postData),
+    });
+    if (!res.ok) throw new Error(`添加文章失败: ${res.status}`);
+    return res.json();
+  }
+  return addPostLocal(postData);
+}
+
+export async function updatePost(id: string, postData: {
+  title: string;
+  date: string;
+  tags: string[];
+  content: string;
+  excerpt: string;
+}): Promise<Post> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/posts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(postData),
+    });
+    if (!res.ok) throw new Error(`更新文章失败: ${res.status}`);
+    return res.json();
+  }
+  return updatePostLocal(id, postData);
+}
+
+export async function deletePost(id: string): Promise<boolean> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/posts/${id}`, { method: 'DELETE' });
+    if (!res.ok) return false;
+    return true;
+  }
+  return deletePostLocal(id);
+}
+
+// ============ Tags ============
+
+export async function getTags(): Promise<string[]> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/tags`);
+    if (!res.ok) return [];
+    return res.json();
+  }
+  return getTagsLocal();
+}
+
+// ============ Auth ============
+
+export async function login(username: string, password: string): Promise<{ token: string; user: { username: string } }> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: '登录失败' }));
+      throw new Error(data.error || '登录失败');
+    }
+    return res.json();
+  }
+  return loginLocal(username, password);
+}
+
+export async function register(username: string, password: string): Promise<{ id: string; username: string }> {
+  if (isProduction) {
+    const res = await fetch(`${API_BASE}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: '注册失败' }));
+      throw new Error(data.error || '注册失败');
+    }
+    return res.json();
+  }
+  return registerLocal(username, password);
+}
+
+export function logout(): void {
+  setCurrentUserLocal(null);
+}
+
+export function isAuthenticated(): boolean {
+  return getCurrentUserLocal() !== null;
+}
+
+export function getCurrentUser(): { username: string } | null {
+  return getCurrentUserLocal();
+}
+
+// ============ LocalStorage helpers (dev only) ============
 
 const STORAGE_KEY = 'jqn365_posts';
 const USER_KEY = 'jqn365_current_user';
@@ -54,8 +186,7 @@ const DEFAULT_POSTS: Post[] = [
 
 ---
 
-**—— 解千牛**
-`,
+**—— 解千牛**`,
     created_at: '2026-06-20T10:00:00Z',
     updated_at: '2026-06-20T10:00:00Z',
   },
@@ -87,8 +218,7 @@ MACD 被称为"指标之王"。
 
 ---
 
-**—— 解千牛**
-`,
+**—— 解千牛**`,
     created_at: '2026-06-18T15:30:00Z',
     updated_at: '2026-06-18T15:30:00Z',
   },
@@ -119,14 +249,12 @@ MACD 被称为"指标之王"。
 
 ---
 
-**—— 解千牛**
-`,
+**—— 解千牛**`,
     created_at: '2026-06-15T09:00:00Z',
     updated_at: '2026-06-15T09:00:00Z',
   },
 ];
 
-// 初始化：首次访问时写入默认数据
 function initStorage() {
   if (!localStorage.getItem(STORAGE_KEY)) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_POSTS));
@@ -136,17 +264,14 @@ function initStorage() {
     users = [{ id: 'admin_1', username: 'JQN365', password: 'bl0596cn' }];
     localStorage.setItem('jqn365_users', JSON.stringify(users));
   }
-  if (!localStorage.getItem(USER_KEY)) {
-    localStorage.setItem(USER_KEY, JSON.stringify(null));
-  }
 }
 
-export function getPosts(): Post[] {
+function getPostsLocal(): Post[] {
   initStorage();
   const data = localStorage.getItem(STORAGE_KEY);
   if (data) {
     try { return JSON.parse(data); }
-    catch (e) {
+    catch {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_POSTS));
       return DEFAULT_POSTS;
     }
@@ -154,104 +279,89 @@ export function getPosts(): Post[] {
   return DEFAULT_POSTS;
 }
 
-export function setPosts(posts: Post[]): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
+function getPostByIdLocal(id: string): Post | null {
+  return getPostsLocal().find(p => p.id === id) || null;
 }
 
-export function getCurrentUser(): { username: string } | null {
-  const data = localStorage.getItem(USER_KEY);
-  return data ? JSON.parse(data) : null;
-}
-
-export function setCurrentUser(user: { username: string } | null): void {
-  if (user) {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-  } else {
-    localStorage.removeItem(USER_KEY);
-  }
-}
-
-export function loadPosts(): Post[] {
-  return getPosts();
-}
-
-export function getPostById(id: string): Post | null {
-  return getPosts().find(p => p.id === id) || null;
-}
-
-export function addPost(postData: {
+function addPostLocal(postData: {
   title: string;
   date: string;
   tags: string[];
   content: string;
   excerpt: string;
 }): Post {
-  const posts = getPosts();
+  const posts = getPostsLocal();
   const id = `post_${Date.now()}`;
   const now = new Date().toISOString();
   const newPost: Post = { id, ...postData, created_at: now, updated_at: now };
   posts.unshift(newPost);
-  setPosts(posts);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
   return newPost;
 }
 
-export function updatePost(id: string, postData: {
+function updatePostLocal(id: string, postData: {
   title: string;
   date: string;
   tags: string[];
   content: string;
   excerpt: string;
 }): Post {
-  const posts = getPosts();
+  const posts = getPostsLocal();
   const index = posts.findIndex(p => p.id === id);
   if (index === -1) throw new Error('文章不存在');
   posts[index] = { ...posts[index], ...postData, updated_at: new Date().toISOString() };
-  setPosts(posts);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
   return posts[index];
 }
 
-export function deletePost(id: string): boolean {
-  const posts = getPosts();
-  setPosts(posts.filter(p => p.id !== id));
+function deletePostLocal(id: string): boolean {
+  const posts = getPostsLocal();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts.filter(p => p.id !== id)));
   return true;
 }
 
-export function getTags(): string[] {
-  const posts = getPosts();
+function getTagsLocal(): string[] {
+  const posts = getPostsLocal();
   const tags = new Set<string>();
   posts.forEach(p => { p.tags?.forEach(tag => tags.add(tag)); });
   return Array.from(tags).sort();
 }
 
-export async function login(username: string, password: string): Promise<{ token: string; user: { username: string } }> {
+function loginLocal(username: string, password: string): Promise<{ token: string; user: { username: string } }> {
+  initStorage();
   let users = JSON.parse(localStorage.getItem('jqn365_users') || '[]');
   if (users.length === 0) {
     users = [{ id: 'admin_1', username: 'JQN365', password: 'bl0596cn' }];
     localStorage.setItem('jqn365_users', JSON.stringify(users));
   }
   const user = users.find((u: any) => u.username === username);
-  if (!user) throw new Error('用户名不存在');
-  if (user.password !== password) throw new Error('密码错误');
-  setCurrentUser({ username: user.username });
-  return { token: 'mock_token', user: { username: user.username } };
+  if (!user) return Promise.reject(new Error('用户名不存在'));
+  if (user.password !== password) return Promise.reject(new Error('密码错误'));
+  setCurrentUserLocal({ username: user.username });
+  return Promise.resolve({ token: 'mock_token', user: { username: user.username } });
 }
 
-export async function register(username: string, password: string): Promise<{ id: string; username: string }> {
+function registerLocal(username: string, password: string): Promise<{ id: string; username: string }> {
   const users = JSON.parse(localStorage.getItem('jqn365_users') || '[]');
   if (users.find((u: any) => u.username === username)) {
-    throw new Error('用户名已存在');
+    return Promise.reject(new Error('用户名已存在'));
   }
   const id = `user_${Date.now()}`;
   users.push({ id, username, password });
   localStorage.setItem('jqn365_users', JSON.stringify(users));
-  setCurrentUser({ username });
-  return { id, username };
+  setCurrentUserLocal({ username });
+  return Promise.resolve({ id, username });
 }
 
-export function logout(): void {
-  setCurrentUser(null);
+function getCurrentUserLocal(): { username: string } | null {
+  const data = localStorage.getItem(USER_KEY);
+  return data ? JSON.parse(data) : null;
 }
 
-export function isAuthenticated(): boolean {
-  return getCurrentUser() !== null;
+function setCurrentUserLocal(user: { username: string } | null): void {
+  if (user) {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  } else {
+    localStorage.removeItem(USER_KEY);
+  }
 }

@@ -16,22 +16,23 @@ export default function PostDetailPage() {
   const [allPosts, setAllPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 优先从 localStorage 加载，没有则使用 posts.json
+  // 优先从 API/localStorage 加载，没有则使用 posts.json
   useEffect(() => {
-    try {
-      const stored = loadPosts();
-      if (stored && stored.length > 0) {
-        // localStorage 有文章数据，使用它
-        setAllPosts(stored);
-      } else {
-        // localStorage 为空，使用 JSON 默认数据
+    async function load() {
+      try {
+        const stored = await loadPosts();
+        if (stored && stored.length > 0) {
+          setAllPosts(stored);
+        } else {
+          setAllPosts(JSON_POSTS);
+        }
+      } catch (e) {
         setAllPosts(JSON_POSTS);
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      setAllPosts(JSON_POSTS);
-    } finally {
-      setLoading(false);
     }
+    load();
   }, []);
 
   // 根据 URL 参数查找文章（支持字符串ID和数字ID）

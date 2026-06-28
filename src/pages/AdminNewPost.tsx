@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPosts, setPosts } from '../utils/postStorage';
+import { addPost } from '../utils/postStorage';
 import { readMultipleFiles } from '../utils/fileUtils';
 import { suggestTags, analyzeTags } from '../utils/autoTag';
 
@@ -13,6 +13,7 @@ export default function AdminNewPost() {
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // 智能分析推荐标签
   const tagSuggestions = useMemo(() => {
@@ -24,12 +25,10 @@ export default function AdminNewPost() {
     return tagsStr.split(',').map(t => t.trim()).filter(Boolean);
   }, [tagsStr]);
 
-  // 未被使用的推荐标签
   const pendingSuggestions = useMemo(() => {
     return tagSuggestions.filter(s => !currentTags.includes(s.tag));
   }, [tagSuggestions, currentTags]);
 
-  // 应用某个推荐标签
   const applyTag = (tag: string) => {
     const existing = currentTags;
     if (!existing.includes(tag)) {
@@ -38,7 +37,6 @@ export default function AdminNewPost() {
     }
   };
 
-  // 一键应用所有推荐标签
   const applyAllTags = () => {
     const existing = currentTags;
     const combined = [...existing];
@@ -50,7 +48,6 @@ export default function AdminNewPost() {
     setTagsStr(combined.join(', '));
   };
 
-  // 移除某个标签
   const removeTag = (tag: string) => {
     const filtered = currentTags.filter(t => t !== tag);
     setTagsStr(filtered.join(', '));
@@ -105,7 +102,7 @@ export default function AdminNewPost() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       setError('请输入文章标题');
       return;
@@ -115,8 +112,10 @@ export default function AdminNewPost() {
       return;
     }
 
-    const tags = currentTags;
+    setSaving(true);
+    setError(null);
 
+    const tags = currentTags;
     const excerpt = content
       .replace(/[#*>\-\|]/g, ' ')
       .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
@@ -124,26 +123,21 @@ export default function AdminNewPost() {
       .trim()
       .substring(0, 150) + '...';
 
-    const posts = getPosts();
-    const id = `post_${Date.now()}`;
-    const now = new Date().toISOString();
-
-    posts.unshift({
-      id,
-      title: title.trim(),
-      date,
-      tags,
-      excerpt,
-      content,
-      created_at: now,
-      updated_at: now,
-    });
-
-    setPosts(posts);
-    navigate('/admin');
+    try {
+      await addPost({
+        title: title.trim(),
+        date,
+        tags,
+        excerpt,
+        content,
+      });
+      navigate('/admin');
+    } catch (e: any) {
+      setError('发布失败: ' + e.message);
+      setSaving(false);
+    }
   };
 
-  // 根据匹配度返回星级显示
   const getScoreStars = (score: number) => {
     if (score >= 10) return '⭐⭐⭐';
     if (score >= 5) return '⭐⭐';
@@ -165,9 +159,10 @@ export default function AdminNewPost() {
           </button>
           <button
             onClick={handleSave}
-            className="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors font-medium"
+            disabled={saving}
+            className="px-5 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors font-medium disabled:opacity-50"
           >
-            发布文章
+            {saving ? '发布中...' : '发布文章'}
           </button>
         </div>
       </div>

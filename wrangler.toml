@@ -1,0 +1,8 @@
+name = "jqn365-blog"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "jqn365-blog-db"
+database_id = "0226f236-8d32-4a6c-bc38-6c9d2887e951"

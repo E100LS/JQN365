@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getPosts, setPosts } from '../utils/postStorage';
+import { loadPosts, updatePost } from '../utils/postStorage';
 import { analyzeTags } from '../utils/autoTag';
 
 export default function AdminEditPost() {
@@ -13,20 +13,29 @@ export default function AdminEditPost() {
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    const posts = getPosts();
-    const post = posts.find(p => p.id === id);
-    if (post) {
-      setTitle(post.title);
-      setDate(post.date);
-      setTagsStr((post.tags || []).join(', '));
-      setContent(post.content);
-    } else {
-      setError('文章不存在');
+    async function loadPost() {
+      try {
+        const posts = await loadPosts();
+        const post = posts.find(p => p.id === id);
+        if (post) {
+          setTitle(post.title);
+          setDate(post.date);
+          setTagsStr((post.tags || []).join(', '));
+          setContent(post.content);
+        } else {
+          setError('文章不存在');
+        }
+      } catch (e: any) {
+        setError('加载文章失败: ' + e.message);
+      } finally {
+        setLoading(false);
+      }
     }
-    setLoading(false);
+    loadPost();
   }, [id]);
 
   // 智能分析推荐标签
@@ -74,7 +83,7 @@ export default function AdminEditPost() {
     return '';
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!title.trim()) {
       setError('请输入文章标题');
       return;
@@ -85,6 +94,9 @@ export default function AdminEditPost() {
     }
     if (!id) return;
 
+    setSaving(true);
+    setError(null);
+
     const tags = currentTags;
 
     const excerpt = content
@@ -93,25 +105,19 @@ export default function AdminEditPost() {
       .trim()
       .substring(0, 150) + '...';
 
-    const posts = getPosts();
-    const index = posts.findIndex(p => p.id === id);
-    if (index === -1) {
-      setError('文章不存在');
-      return;
+    try {
+      await updatePost(id, {
+        title: title.trim(),
+        date,
+        tags,
+        excerpt,
+        content,
+      });
+      navigate('/admin');
+    } catch (e: any) {
+      setError('保存失败: ' + e.message);
+      setSaving(false);
     }
-
-    posts[index] = {
-      ...posts[index],
-      title: title.trim(),
-      date,
-      tags,
-      excerpt,
-      content,
-      updated_at: new Date().toISOString(),
-    };
-
-    setPosts(posts);
-    navigate('/admin');
   };
 
   if (loading) {
@@ -135,9 +141,10 @@ export default function AdminEditPost() {
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors"
+            disabled={saving}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-500 transition-colors disabled:opacity-50"
           >
-            保存修改
+            {saving ? '保存中...' : '保存修改'}
           </button>
         </div>
       </div>

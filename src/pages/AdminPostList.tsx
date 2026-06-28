@@ -47,12 +47,12 @@ export default function AdminPostList() {
       return;
     }
     
-    function loadPostsData() {
+    async function loadPostsData() {
       setLoading(true);
       setError(null);
       
       try {
-        const loaded = loadPosts();
+        const loaded = await loadPosts();
         setPosts(loaded);
       } catch (e: any) {
         setError('加载文章失败: ' + e.message);
@@ -70,12 +70,16 @@ export default function AdminPostList() {
   }
 
   // 删除文章
-  const handleDelete = (id: string) => {
-    const success = deletePost(id);
-    if (success) {
-      setPosts(posts.filter(p => p.id !== id));
-    } else {
-      alert('删除失败，请重试');
+  const handleDelete = async (id: string) => {
+    try {
+      const success = await deletePost(id);
+      if (success) {
+        setPosts(posts.filter(p => p.id !== id));
+      } else {
+        alert('删除失败，请重试');
+      }
+    } catch (e: any) {
+      alert('删除失败: ' + e.message);
     }
     setDeleteConfirm(null);
   };
@@ -106,7 +110,7 @@ export default function AdminPostList() {
             .trim()
             .substring(0, 150) + '...';
 
-          const post = addPost({
+          const post = await addPost({
             title,
             date: new Date().toISOString().split('T')[0],
             tags,
@@ -256,7 +260,7 @@ export default function AdminPostList() {
         
         {posts.length > 0 && (
           <div className="flex gap-2">
-            {getTags().slice(0, 5).map(tag => (
+            {(getTags().slice(0, 5) as string[]).map(tag => (
               <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
                 {tag}
               </span>
