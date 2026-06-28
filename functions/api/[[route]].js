@@ -138,7 +138,7 @@ app.get('/tags', async (c) => {
 // ============ Auth API ============
 
 // POST /api/login - Login
-app.post('/api/login', async (c) => {
+app.post('/login', async (c) => {
   try {
     const db = c.env.DB;
     const body = await c.req.json();
