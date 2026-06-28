@@ -115,7 +115,9 @@ export async function login(username: string, password: string): Promise<{ token
       const data = await res.json().catch(() => ({ error: '登录失败' }));
       throw new Error(data.error || '登录失败');
     }
-    return res.json();
+    const result = await res.json();
+    setCurrentUserLocal(result.user);
+    return result;
   }
   return loginLocal(username, password);
 }

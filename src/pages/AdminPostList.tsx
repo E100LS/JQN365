@@ -24,8 +24,20 @@ export default function AdminPostList() {
   const [error, setError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+
+  // 加载标签
+  useEffect(() => {
+    async function loadTags() {
+      if (authenticated) {
+        const t = await getTags();
+        setTags(t);
+      }
+    }
+    loadTags();
+  }, [authenticated]);
 
   // 检查是否已登录
   useEffect(() => {
@@ -260,7 +272,7 @@ export default function AdminPostList() {
         
         {posts.length > 0 && (
           <div className="flex gap-2">
-            {(getTags().slice(0, 5) as string[]).map(tag => (
+            {tags.slice(0, 5).map(tag => (
               <span key={tag} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
                 {tag}
               </span>
