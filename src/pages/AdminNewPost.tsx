@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addPost, isAuthenticated, getTags, loadPosts, deletePost } from '../utils/postStorage';
+import { getPosts, setPosts } from '../utils/postStorage';
 import { readMultipleFiles } from '../utils/fileUtils';
 import { suggestTags, analyzeTags } from '../utils/autoTag';
 
@@ -13,7 +13,6 @@ export default function AdminNewPost() {
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [authenticated, setAuthenticated] = useState(false);
 
   // 智能分析推荐标签
   const tagSuggestions = useMemo(() => {
@@ -106,7 +105,7 @@ export default function AdminNewPost() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!title.trim()) {
       setError('请输入文章标题');
       return;
@@ -125,14 +124,22 @@ export default function AdminNewPost() {
       .trim()
       .substring(0, 150) + '...';
 
-    await addPost({
+    const posts = getPosts();
+    const id = `post_${Date.now()}`;
+    const now = new Date().toISOString();
+
+    posts.unshift({
+      id,
       title: title.trim(),
       date,
       tags,
       excerpt,
-      content
+      content,
+      created_at: now,
+      updated_at: now,
     });
 
+    setPosts(posts);
     navigate('/admin');
   };
 

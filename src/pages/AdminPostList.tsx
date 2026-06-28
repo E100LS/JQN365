@@ -47,12 +47,12 @@ export default function AdminPostList() {
       return;
     }
     
-    async function loadPostsData() {
+    function loadPostsData() {
       setLoading(true);
       setError(null);
       
       try {
-        const loaded = await loadPosts();
+        const loaded = loadPosts();
         setPosts(loaded);
       } catch (e: any) {
         setError('加载文章失败: ' + e.message);
@@ -70,8 +70,13 @@ export default function AdminPostList() {
   }
 
   // 删除文章
-  const handleDelete = async (id: string) => {
-    await deletePost(id);
+  const handleDelete = (id: string) => {
+    const success = deletePost(id);
+    if (success) {
+      setPosts(posts.filter(p => p.id !== id));
+    } else {
+      alert('删除失败，请重试');
+    }
     setDeleteConfirm(null);
   };
 
@@ -132,8 +137,8 @@ export default function AdminPostList() {
   };
 
   // 退出登录
-  const handleLogout = async () => {
-    await logout();
+  const handleLogout = () => {
+    logout();
     setAuthenticated(false);
     setUsername(null);
   };
