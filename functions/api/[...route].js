@@ -10,7 +10,7 @@ app.use('*', cors());
 // ============ Posts API ============
 
 // GET /api/posts - List all posts
-app.get('/api/posts', async (c) => {
+app.get('/posts', async (c) => {
   try {
     const db = c.env.DB;
     const result = await db.prepare('SELECT * FROM posts ORDER BY date DESC').all();
@@ -34,7 +34,7 @@ app.get('/api/posts', async (c) => {
 });
 
 // GET /api/posts/:id - Get single post
-app.get('/api/posts/:id', async (c) => {
+app.get('/posts/:id', async (c) => {
   try {
     const db = c.env.DB;
     const id = c.req.param('id');
@@ -60,7 +60,7 @@ app.get('/api/posts/:id', async (c) => {
 });
 
 // POST /api/posts - Create new post
-app.post('/api/posts', async (c) => {
+app.post('/posts', async (c) => {
   try {
     const db = c.env.DB;
     const body = await c.req.json();
@@ -80,7 +80,7 @@ app.post('/api/posts', async (c) => {
 });
 
 // PUT /api/posts/:id - Update post
-app.put('/api/posts/:id', async (c) => {
+app.put('/posts/:id', async (c) => {
   try {
     const db = c.env.DB;
     const id = c.req.param('id');
@@ -99,7 +99,7 @@ app.put('/api/posts/:id', async (c) => {
 });
 
 // DELETE /api/posts/:id - Delete post
-app.delete('/api/posts/:id', async (c) => {
+app.delete('/posts/:id', async (c) => {
   try {
     const db = c.env.DB;
     const id = c.req.param('id');
@@ -111,7 +111,7 @@ app.delete('/api/posts/:id', async (c) => {
 });
 
 // GET /api/tags - Get all tags
-app.get('/api/tags', async (c) => {
+app.get('/tags', async (c) => {
   try {
     const db = c.env.DB;
     const result = await db.prepare('SELECT tags FROM posts WHERE tags IS NOT NULL AND tags != "[]"').all();
