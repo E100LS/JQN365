@@ -365,6 +365,3 @@ function setCurrentUserLocal(user: { username: string } | null): void {
     localStorage.removeItem(USER_KEY);
   }
 }
-
-// Triggered deploy: D1 database binding - 2026-06-28
-
