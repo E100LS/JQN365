@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && node -e \"require('fs').copyFileSync('_routes.json', 'dist/_routes.json')\"",
+    "build": "tsc && vite build",
     "preview": "vite preview",
     "cf:dev": "wrangler pages dev dist --compatibility-date=2024-01-01",
     "cf:deploy": "wrangler pages deploy dist --branch main"
